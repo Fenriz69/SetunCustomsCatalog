@@ -1,0 +1,288 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Каталог Товаров</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/swiper@11/swiper-bundle.min.css"/>
+    <style>
+        body { font-family: 'Inter', sans-serif; }
+        .filter-container {
+            height: calc(100vh - 100px); /* Высота окна минус отступы */
+        }
+        /* Стили для ограничения высоты и добавления прокрутки в фильтрах */
+        .filter-options {
+            max-height: 250px; /* Максимальная высота блока */
+            overflow-y: auto;  /* Включаем вертикальную прокрутку, если нужно */
+        }
+        .swiper-button-next, .swiper-button-prev {
+            color: #4A5568; /* Цвет стрелок */
+        }
+        .swiper-pagination-bullet-active {
+            background: #4A5568; /* Цвет активной точки пагинации */
+        }
+    </style>
+     <link rel="preconnect" href="https://rsms.me/">
+     <link rel="stylesheet" href="https://rsms.me/inter/inter.css">
+</head>
+<body class="bg-gray-50 text-gray-800">
+
+    <div class="container mx-auto p-4 lg:p-8">
+        <header class="text-center mb-8">
+            <h1 class="text-4xl font-bold text-gray-900">Каталог Товаров</h1>
+            <p class="text-lg text-gray-600 mt-2">Интерактивная витрина с фильтрами</p>
+        </header>
+
+        <!-- Раздел Карусели "Топ Продаж" -->
+        <section id="top-sales-section" class="mb-10 hidden">
+             <h2 class="text-2xl font-bold text-gray-800 mb-4 border-b pb-2">🔥 Топ продаж</h2>
+             <!-- Slider main container -->
+            <div class="swiper">
+                <!-- Additional required wrapper -->
+                <div class="swiper-wrapper" id="top-sales-carousel">
+                    <!-- Слайды будут вставлены сюда с помощью JS -->
+                </div>
+                <!-- If we need pagination -->
+                <div class="swiper-pagination"></div>
+
+                <!-- If we need navigation buttons -->
+                <div class="swiper-button-prev"></div>
+                <div class="swiper-button-next"></div>
+            </div>
+        </section>
+
+        <div class="flex flex-col lg:flex-row gap-8">
+            <!-- Боковая панель с фильтрами -->
+            <aside class="lg:w-1/4 xl:w-1/5 bg-white p-6 rounded-lg shadow-md self-start sticky top-8">
+                <div class="filter-container">
+                    <h2 class="text-xl font-bold mb-4 border-b pb-2">Фильтры</h2>
+                    <div id="filters-container" class="space-y-6">
+                        <!-- Фильтры будут вставлены сюда с помощью JS -->
+                    </div>
+                </div>
+            </aside>
+
+            <!-- Основной контент с товарами -->
+            <main class="w-full lg:w-3/4 xl:w-4/5">
+                <!-- Панель сортировки -->
+                 <div class="flex justify-end mb-4">
+                    <select id="sort-select" class="rounded-md border-gray-300 shadow-sm focus:border-indigo-300 focus:ring focus:ring-indigo-200 focus:ring-opacity-50">
+                        <option value="random">Случайный порядок</option>
+                        <option value="sales">По популярности</option>
+                        <option value="name-asc">По названию (А-Я)</option>
+                        <option value="name-desc">По названию (Я-А)</option>
+                    </select>
+                </div>
+                <!-- Сетка товаров -->
+                <div id="loading" class="text-center py-12">
+                    <p class="text-lg text-gray-500">Загрузка каталога...</p>
+                </div>
+                <div id="product-grid" class="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 2xl:grid-cols-4 gap-6">
+                    <!-- Карточки товаров будут вставлены сюда -->
+                </div>
+            </main>
+        </div>
+    </div>
+
+    <script src="https://cdn.jsdelivr.net/npm/swiper@11/swiper-bundle.min.js"></script>
+    <script>
+        document.addEventListener('DOMContentLoaded', () => {
+            // Замените на /api/catalog при развертывании на сервере
+            const API_URL = '/api/catalog'; 
+            const productGrid = document.getElementById('product-grid');
+            const loadingIndicator = document.getElementById('loading');
+            const filtersContainer = document.getElementById('filters-container');
+            const sortSelect = document.getElementById('sort-select');
+            const topSalesCarousel = document.getElementById('top-sales-carousel');
+            const topSalesSection = document.getElementById('top-sales-section');
+
+            let allProducts = [];
+            let swiper;
+
+            const fetchProducts = async () => {
+                try {
+                    const response = await fetch(API_URL);
+                    if (!response.ok) throw new Error(`Ошибка сети: ${response.statusText}`);
+                    const data = await response.json();
+                    
+                    if(data.error) {
+                        throw new Error(data.error);
+                    }
+                    
+                    allProducts = data.catalog;
+                    shuffleArray(allProducts);
+
+                    createFilters(allProducts);
+                    applyFiltersAndSort(); // Используем единую функцию
+                    populateTopSales(allProducts, data.topSalesSkus);
+
+                } catch (error) {
+                    console.error('Fetch error:', error);
+                    loadingIndicator.innerHTML = `<p class="text-red-500">Ошибка загрузки каталога: ${error.message}</p>`;
+                } finally {
+                    loadingIndicator.classList.add('hidden');
+                }
+            };
+
+            const shuffleArray = (array) => {
+                for (let i = array.length - 1; i > 0; i--) {
+                    const j = Math.floor(Math.random() * (i + 1));
+                    [array[i], array[j]] = [array[j], array[i]];
+                }
+            };
+
+            const createFilters = (products) => {
+                const races = [...new Set(products.map(p => p.race))].sort();
+                const classes = [...new Set(products.map(p => p.class))].sort();
+
+                filtersContainer.innerHTML = `
+                    <div>
+                        <h3 class="font-semibold mb-2">По остатку</h3>
+                        <label class="flex items-center space-x-2">
+                            <input type="checkbox" data-filter-type="stock" value="in-stock" class="rounded">
+                            <span>Только в наличии</span>
+                        </label>
+                    </div>
+                    <div>
+                        <h3 class="font-semibold mb-2">Раса</h3>
+                        <div class="filter-options space-y-1">
+                            ${races.map(race => `
+                                <label class="flex items-center space-x-2">
+                                    <input type="checkbox" data-filter-type="race" value="${race}" class="rounded">
+                                    <span>${race}</span>
+                                </label>
+                            `).join('')}
+                        </div>
+                    </div>
+                    <div>
+                        <h3 class="font-semibold mb-2">Класс</h3>
+                        <div class="filter-options space-y-1">
+                             ${classes.map(cls => `
+                                <label class="flex items-center space-x-2">
+                                    <input type="checkbox" data-filter-type="class" value="${cls}" class="rounded">
+                                    <span>${cls}</span>
+                                </label>
+                            `).join('')}
+                        </div>
+                    </div>
+                `;
+            };
+
+            const displayProducts = (products) => {
+                productGrid.innerHTML = '';
+                if (products.length === 0) {
+                    productGrid.innerHTML = '<p class="col-span-full text-center text-gray-500">Товары, соответствующие фильтрам, не найдены.</p>';
+                    return;
+                }
+                products.forEach(product => {
+                    const stockText = product.stock > 0 ? `В наличии: ${product.stock}` : 'Нет в наличии';
+                    const stockColor = product.stock > 0 ? 'text-green-600' : 'text-red-600';
+                    const topSaleBadge = product.sales > 0 ? `<div class="absolute top-2 right-2 bg-red-500 text-white text-xs font-bold px-2 py-1 rounded-full">Топ продаж</div>` : '';
+                    
+                    const card = `
+                        <div class="bg-white rounded-lg shadow-md overflow-hidden transform hover:-translate-y-1 transition-transform duration-300">
+                            <div class="relative h-64 bg-gray-200">
+                                <img src="${product.imageUrl}" alt="${product.name}" class="w-full h-full object-cover" onerror="this.src='https://placehold.co/400x400/e2e8f0/64748b?text=Ошибка'; this.onerror=null;">
+                                ${topSaleBadge}
+                            </div>
+                            <div class="p-4">
+                                <p class="text-sm text-gray-500">${product.sku}</p>
+                                <h3 class="text-lg font-bold truncate">${product.name}</h3>
+                                <p class="text-sm font-semibold ${stockColor} mt-1">${stockText}</p>
+                                <div class="mt-3 flex flex-wrap gap-2">
+                                    <span class="bg-blue-100 text-blue-800 text-xs font-medium px-2.5 py-0.5 rounded-full">${product.race}</span>
+                                    <span class="bg-purple-100 text-purple-800 text-xs font-medium px-2.5 py-0.5 rounded-full">${product.class}</span>
+                                </div>
+                            </div>
+                        </div>
+                    `;
+                    productGrid.innerHTML += card;
+                });
+            };
+
+            const populateTopSales = (products, topSalesSkus) => {
+                let topProducts;
+                
+                if (topSalesSkus && topSalesSkus.length > 0) {
+                    const productMap = new Map(products.map(p => [p.sku, p]));
+                    topProducts = topSalesSkus.map(sku => productMap.get(sku)).filter(Boolean);
+                } else {
+                    topProducts = [...products].filter(p => p.sales > 0).sort((a, b) => b.sales - a.sales).slice(0, 15);
+                }
+
+                if (topProducts.length > 0) {
+                    topSalesSection.classList.remove('hidden');
+                    topSalesCarousel.innerHTML = topProducts.map(product => `
+                        <div class="swiper-slide">
+                            <div class="bg-white rounded-lg shadow-md overflow-hidden">
+                                <div class="relative h-56 bg-gray-200">
+                                    <img src="${product.imageUrl}" alt="${product.name}" class="w-full h-full object-cover" onerror="this.src='https://placehold.co/400x400/e2e8f0/64748b?text=Ошибка'; this.onerror=null;">
+                                </div>
+                                <div class="p-3">
+                                    <p class="text-xs text-gray-500">${product.sku}</p>
+                                    <h3 class="text-base font-bold truncate">${product.name}</h3>
+                                </div>
+                            </div>
+                        </div>
+                    `).join('');
+                    
+                    swiper = new Swiper('.swiper', {
+                        slidesPerView: 2, spaceBetween: 10,
+                        pagination: { el: '.swiper-pagination', clickable: true },
+                        navigation: { nextEl: '.swiper-button-next', prevEl: '.swiper-button-prev' },
+                        breakpoints: {
+                            640: { slidesPerView: 3, spaceBetween: 20 },
+                            1024: { slidesPerView: 4, spaceBetween: 30 },
+                            1280: { slidesPerView: 5, spaceBetween: 30 },
+                        }
+                    });
+                }
+            };
+            
+            const applyFiltersAndSort = () => {
+                const checkedBoxes = filtersContainer.querySelectorAll('input[type="checkbox"]:checked');
+                const activeFilters = { stock: [], race: [], class: [] };
+
+                checkedBoxes.forEach(checkbox => {
+                    activeFilters[checkbox.dataset.filterType].push(checkbox.value);
+                });
+
+                let filteredProducts = [...allProducts];
+
+                if (activeFilters.stock.includes('in-stock')) {
+                    filteredProducts = filteredProducts.filter(p => p.stock > 0);
+                }
+                if (activeFilters.race.length > 0) {
+                    filteredProducts = filteredProducts.filter(p => activeFilters.race.includes(p.race));
+                }
+                if (activeFilters.class.length > 0) {
+                    filteredProducts = filteredProducts.filter(p => activeFilters.class.includes(p.class));
+                }
+                
+                const sortBy = sortSelect.value;
+                if (sortBy === 'sales') {
+                    filteredProducts.sort((a, b) => b.sales - a.sales);
+                } else if (sortBy === 'name-asc') {
+                    filteredProducts.sort((a, b) => a.name.localeCompare(b.name));
+                } else if (sortBy === 'name-desc') {
+                    filteredProducts.sort((a, b) => b.name.localeCompare(a.name));
+                }
+                
+                displayProducts(filteredProducts);
+            };
+
+            filtersContainer.addEventListener('change', (event) => {
+                if (event.target.matches('input[type="checkbox"]')) {
+                    applyFiltersAndSort();
+                }
+            });
+
+            sortSelect.addEventListener('change', applyFiltersAndSort);
+
+            fetchProducts();
+        });
+    </script>
+</body>
+</html>
+
