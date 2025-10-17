@@ -10,24 +10,20 @@
         body { font-family: 'Inter', sans-serif; }
         .filter-section { max-height: 200px; overflow-y: auto; }
         .swiper-button-next, .swiper-button-prev { color: #4A5568; }
-        .card-tag {
-            font-size: 0.7rem;
-            padding: 2px 6px;
-            border-radius: 9999px;
-            font-weight: 500;
-        }
+        .card-tag { font-size: 0.7rem; padding: 2px 6px; border-radius: 9999px; font-weight: 500; }
         .top-sales-badge {
-            position: absolute;
-            top: 8px;
-            right: 8px;
-            background-color: #EF4444;
-            color: white;
-            padding: 4px 8px;
-            border-radius: 16px;
-            font-size: 0.75rem;
-            font-weight: bold;
-            z-index: 10;
+            position: absolute; top: 8px; right: 8px; background-color: #EF4444; color: white;
+            padding: 4px 8px; border-radius: 16px; font-size: 0.75rem; font-weight: bold; z-index: 10;
         }
+        /* Стили для пагинации */
+        .pagination-btn {
+            min-width: 40px; height: 40px; border: 1px solid #D1D5DB; background-color: white;
+            color: #374151; display: inline-flex; justify-content: center; align-items: center;
+            border-radius: 0.375rem; margin: 0 4px; cursor: pointer; transition: all 0.2s;
+        }
+        .pagination-btn:hover { background-color: #F3F4F6; }
+        .pagination-btn.active { background-color: #4F46E5; color: white; border-color: #4F46E5; }
+        .pagination-btn:disabled { cursor: not-allowed; opacity: 0.5; }
     </style>
 </head>
 <body class="bg-gray-100 text-gray-800">
@@ -38,57 +34,37 @@
             <p class="text-lg text-gray-600">Интерактивная витрина с фильтрами</p>
         </header>
 
-        <!-- Карусель "Топ продаж" -->
         <section id="top-sales-section" class="mb-12 hidden">
              <h2 class="text-2xl font-bold text-gray-800 mb-4">🔥 Топ продаж</h2>
              <div class="swiper-container bg-white p-4 rounded-lg shadow-md">
-                <div class="swiper-wrapper" id="top-sales-carousel">
-                    <!-- Слайды будут вставлены сюда -->
-                </div>
+                <div class="swiper-wrapper" id="top-sales-carousel"></div>
                 <div class="swiper-button-next"></div>
                 <div class="swiper-button-prev"></div>
             </div>
         </section>
 
-
         <div class="flex flex-col md:flex-row gap-8">
-            <!-- Панель фильтров -->
             <aside class="w-full md:w-1/4 bg-white p-6 rounded-lg shadow-md self-start">
                 <h2 class="text-xl font-bold mb-4 border-b pb-2">Фильтры</h2>
-                
                 <div id="filter-container">
-                    <!-- Фильтр по остатку -->
                     <div class="mb-4">
                         <h3 class="font-semibold mb-2">По остатку</h3>
-                        <label class="flex items-center">
-                            <input type="checkbox" id="in-stock-filter" class="h-4 w-4 rounded border-gray-300 text-indigo-600 focus:ring-indigo-500">
-                            <span class="ml-2 text-sm text-gray-700">Только в наличии</span>
-                        </label>
+                        <label class="flex items-center"><input type="checkbox" id="in-stock-filter" class="h-4 w-4 rounded"><span class="ml-2 text-sm">Только в наличии</span></label>
                     </div>
-
-                    <!-- Фильтр по расе -->
                     <div class="mb-4">
                         <h3 class="font-semibold mb-2">Раса</h3>
-                        <div id="race-filters" class="filter-section space-y-1 pr-2">
-                            <!-- Чекбоксы для рас -->
-                        </div>
+                        <div id="race-filters" class="filter-section space-y-1 pr-2"></div>
                     </div>
-
-                    <!-- Фильтр по классу -->
                     <div>
                         <h3 class="font-semibold mb-2">Класс</h3>
-                        <div id="class-filters" class="filter-section space-y-1 pr-2">
-                            <!-- Чекбоксы для классов -->
-                        </div>
+                        <div id="class-filters" class="filter-section space-y-1 pr-2"></div>
                     </div>
                 </div>
             </aside>
 
-            <!-- Сетка товаров -->
             <main class="w-full md:w-3/4">
-                <!-- Панель сортировки -->
                 <div class="flex justify-end mb-4">
-                     <select id="sort-select" class="rounded-md border-gray-300 shadow-sm focus:border-indigo-300 focus:ring focus:ring-indigo-200 focus:ring-opacity-50">
+                     <select id="sort-select" class="rounded-md border-gray-300 shadow-sm">
                         <option value="random" selected>Случайный порядок</option>
                         <option value="popularity">По популярности</option>
                         <option value="name-asc">По названию (А-Я)</option>
@@ -96,12 +72,11 @@
                     </select>
                 </div>
                 
-                <div id="loading" class="text-center py-12">
-                    <p class="text-lg text-gray-600">Загрузка каталога...</p>
-                </div>
-                <div id="product-grid" class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6">
-                    <!-- Карточки товаров будут вставлены сюда -->
-                </div>
+                <div id="loading" class="text-center py-12"><p>Загрузка каталога...</p></div>
+                <div id="product-grid" class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6"></div>
+                
+                <!-- Навигация по страницам -->
+                <nav id="pagination-container" class="flex justify-center mt-8"></nav>
             </main>
         </div>
     </div>
@@ -112,28 +87,27 @@
             const productGrid = document.getElementById('product-grid');
             const raceFilters = document.getElementById('race-filters');
             const classFilters = document.getElementById('class-filters');
-            const inStockFilter = document.getElementById('in-stock-filter');
             const loadingIndicator = document.getElementById('loading');
             const filterContainer = document.getElementById('filter-container');
             const sortSelect = document.getElementById('sort-select');
-            
+            const paginationContainer = document.getElementById('pagination-container');
             const topSalesSection = document.getElementById('top-sales-section');
             const topSalesCarousel = document.getElementById('top-sales-carousel');
 
             let allProducts = [];
             let topProducts = [];
+            let filteredAndSortedProducts = [];
+            let currentPage = 1;
+            const itemsPerPage = 15;
 
-            // --- Получение данных с сервера ---
             async function fetchData() {
                 try {
                     const response = await fetch('/api/catalog');
-                    if (!response.ok) {
-                        throw new Error(`HTTP error! status: ${response.status}`);
-                    }
+                    if (!response.ok) throw new Error(`HTTP error! status: ${response.status}`);
                     const data = await response.json();
                     
                     if(data.error) {
-                        loadingIndicator.innerHTML = `<p class="text-red-500">Ошибка загрузки: ${data.error}</p>`;
+                        loadingIndicator.innerHTML = `<p class="text-red-500">Ошибка: ${data.error}</p>`;
                         return;
                     }
                     
@@ -143,138 +117,111 @@
                     populateFilters(allProducts);
                     populateTopSales(topProducts);
                     applyFiltersAndSort();
-
                     loadingIndicator.style.display = 'none';
-
                 } catch (error) {
-                    console.error("Ошибка при получении данных:", error);
-                    loadingIndicator.innerHTML = '<p class="text-red-500">Не удалось загрузить каталог. Проверьте, запущен ли сервер.</p>';
+                    console.error("Ошибка:", error);
+                    loadingIndicator.innerHTML = '<p class="text-red-500">Не удалось загрузить каталог.</p>';
                 }
             }
             
-            // --- Заполнение карусели ---
             function populateTopSales(products) {
                 if (!products || products.length === 0) return;
-                
-                topSalesCarousel.innerHTML = products.map(product => `
-                    <div class="swiper-slide">
-                        ${createProductCard(product, true)}
-                    </div>
-                `).join('');
-                
+                topSalesCarousel.innerHTML = products.map(p => `<div class="swiper-slide">${createProductCard(p, true)}</div>`).join('');
                 topSalesSection.classList.remove('hidden');
-
                 new Swiper('.swiper-container', {
-                    slidesPerView: 1,
-                    spaceBetween: 10,
-                    navigation: {
-                        nextEl: '.swiper-button-next',
-                        prevEl: '.swiper-button-prev',
-                    },
-                    breakpoints: {
-                        640: { slidesPerView: 2, spaceBetween: 20 },
-                        768: { slidesPerView: 3, spaceBetween: 30 },
-                        1024: { slidesPerView: 4, spaceBetween: 40 },
-                    }
+                    slidesPerView: 1, spaceBetween: 10, navigation: { nextEl: '.swiper-button-next', prevEl: '.swiper-button-prev' },
+                    breakpoints: { 640: { slidesPerView: 2 }, 768: { slidesPerView: 3 }, 1024: { slidesPerView: 4 } }
                 });
             }
 
-            // --- Заполнение фильтров ---
             function populateFilters(products) {
                 const races = [...new Set(products.map(p => p.race))].sort();
                 const classes = [...new Set(products.map(p => p.class))].sort();
-
-                raceFilters.innerHTML = races.map(race => `
-                    <label class="flex items-center">
-                        <input type="checkbox" data-filter="race" value="${race}" class="h-4 w-4 rounded border-gray-300 text-indigo-600 focus:ring-indigo-500">
-                        <span class="ml-2 text-sm text-gray-700">${race}</span>
-                    </label>
-                `).join('');
-
-                classFilters.innerHTML = classes.map(cls => `
-                    <label class="flex items-center">
-                        <input type="checkbox" data-filter="class" value="${cls}" class="h-4 w-4 rounded border-gray-300 text-indigo-600 focus:ring-indigo-500">
-                        <span class="ml-2 text-sm text-gray-700">${cls}</span>
-                    </label>
-                `).join('');
+                raceFilters.innerHTML = races.map(r => `<label class="flex items-center"><input type="checkbox" data-filter="race" value="${r}" class="h-4 w-4 rounded"><span class="ml-2 text-sm">${r}</span></label>`).join('');
+                classFilters.innerHTML = classes.map(c => `<label class="flex items-center"><input type="checkbox" data-filter="class" value="${c}" class="h-4 w-4 rounded"><span class="ml-2 text-sm">${c}</span></label>`).join('');
             }
             
-            // --- Создание карточки товара ---
             function createProductCard(product, isCarousel = false) {
-                 const stockStatus = product.stock > 0
-                    ? `<span class="text-green-600 font-semibold">В наличии: ${product.stock}</span>`
-                    : '<span class="text-red-600 font-semibold">Нет в наличии</span>';
-                
+                const stockStatus = product.stock > 0 ? `<span class="text-green-600 font-semibold">В наличии: ${product.stock}</span>` : '<span class="text-red-600 font-semibold">Нет в наличии</span>';
                 const isTopSale = !isCarousel && topProducts.some(p => p.sku === product.sku);
-
-                return `
-                    <div class="bg-white rounded-lg shadow-md overflow-hidden transform hover:scale-105 transition-transform duration-300 relative">
-                        ${isTopSale ? '<div class="top-sales-badge">Топ продаж</div>' : ''}
-                        <div class="w-full h-48 bg-gray-200 flex items-center justify-center">
-                            <img src="${product.imageUrl}" alt="${product.name}" class="w-full h-full object-cover" onerror="this.onerror=null;this.src='https://placehold.co/400x400/e2e8f0/64748b?text=Ошибка';">
-                        </div>
-                        <div class="p-4">
-                            <p class="text-xs text-gray-500">${product.sku}</p>
-                            <h3 class="font-bold text-md truncate">${product.name}</h3>
-                            <p class="text-sm my-2">${stockStatus}</p>
-                            <div class="flex flex-wrap gap-2 mt-2">
-                                <span class="card-tag bg-blue-100 text-blue-800">${product.race}</span>
-                                <span class="card-tag bg-purple-100 text-purple-800">${product.class}</span>
+                return `<div class="bg-white rounded-lg shadow-md overflow-hidden transform hover:scale-105 transition-transform duration-300 relative">
+                            ${isTopSale ? '<div class="top-sales-badge">Топ продаж</div>' : ''}
+                            <div class="w-full h-48 bg-gray-200"><img src="${product.imageUrl}" alt="${product.name}" class="w-full h-full object-cover" onerror="this.onerror=null;this.src='https://placehold.co/400x400/e2e8f0/64748b?text=Ошибка';"></div>
+                            <div class="p-4">
+                                <p class="text-xs text-gray-500">${product.sku}</p>
+                                <h3 class="font-bold text-md truncate">${product.name}</h3>
+                                <p class="text-sm my-2">${stockStatus}</p>
+                                <div class="flex flex-wrap gap-2 mt-2">
+                                    <span class="card-tag bg-blue-100 text-blue-800">${product.race}</span>
+                                    <span class="card-tag bg-purple-100 text-purple-800">${product.class}</span>
+                                </div>
                             </div>
-                        </div>
-                    </div>
-                `;
+                        </div>`;
             }
 
-            // --- Отображение отфильтрованных и отсортированных товаров ---
-            function renderProducts(products) {
-                if (products.length === 0) {
+            function renderCurrentPage() {
+                const startIndex = (currentPage - 1) * itemsPerPage;
+                const endIndex = startIndex + itemsPerPage;
+                const pageItems = filteredAndSortedProducts.slice(startIndex, endIndex);
+
+                if (pageItems.length === 0 && filteredAndSortedProducts.length > 0) {
+                     productGrid.innerHTML = '<p class="col-span-full text-center text-gray-500">Нет товаров на этой странице.</p>';
+                } else if (filteredAndSortedProducts.length === 0) {
                     productGrid.innerHTML = '<p class="col-span-full text-center text-gray-500">Товары, соответствующие вашим фильтрам, не найдены.</p>';
-                    return;
                 }
-                productGrid.innerHTML = products.map(product => createProductCard(product)).join('');
+                else {
+                    productGrid.innerHTML = pageItems.map(p => createProductCard(p)).join('');
+                }
+            }
+
+            function setupPagination() {
+                const pageCount = Math.ceil(filteredAndSortedProducts.length / itemsPerPage);
+                paginationContainer.innerHTML = '';
+                if (pageCount <= 1) return;
+
+                for (let i = 1; i <= pageCount; i++) {
+                    const btn = document.createElement('button');
+                    btn.innerText = i;
+                    btn.className = `pagination-btn ${i === currentPage ? 'active' : ''}`;
+                    btn.addEventListener('click', () => {
+                        currentPage = i;
+                        renderCurrentPage();
+                        // Обновляем активную кнопку
+                        document.querySelectorAll('.pagination-btn').forEach(b => b.classList.remove('active'));
+                        btn.classList.add('active');
+                    });
+                    paginationContainer.appendChild(btn);
+                }
             }
             
-            // --- Главная функция фильтрации и сортировки ---
             function applyFiltersAndSort() {
-                console.log("--- Применение фильтров и сортировки ---");
-
                 const selectedRaces = Array.from(raceFilters.querySelectorAll('input:checked')).map(cb => cb.value);
                 const selectedClasses = Array.from(classFilters.querySelectorAll('input:checked')).map(cb => cb.value);
-                const showInStockOnly = inStockFilter.checked;
+                const showInStockOnly = document.getElementById('in-stock-filter').checked;
                 const sortBy = sortSelect.value;
                 
-                console.log("Выбранные расы:", selectedRaces);
-                console.log("Выбранные классы:", selectedClasses);
-                console.log("Только в наличии:", showInStockOnly);
-                console.log("Сортировка по:", sortBy);
-
-                let filteredProducts = allProducts.filter(product => {
-                    const raceMatch = selectedRaces.length === 0 || selectedRaces.includes(product.race);
-                    const classMatch = selectedClasses.length === 0 || selectedClasses.includes(product.class);
-                    const stockMatch = !showInStockOnly || product.stock > 0;
+                filteredAndSortedProducts = allProducts.filter(p => {
+                    const raceMatch = selectedRaces.length === 0 || selectedRaces.includes(p.race);
+                    const classMatch = selectedClasses.length === 0 || selectedClasses.includes(p.class);
+                    const stockMatch = !showInStockOnly || p.stock > 0;
                     return raceMatch && classMatch && stockMatch;
                 });
 
-                // --- Сортировка ---
                 if (sortBy === 'popularity') {
-                    filteredProducts.sort((a, b) => b.sales - a.sales);
+                    filteredAndSortedProducts.sort((a, b) => b.sales - a.sales);
                 } else if (sortBy === 'name-asc') {
-                    filteredProducts.sort((a, b) => a.name.localeCompare(b.name));
+                    filteredAndSortedProducts.sort((a, b) => a.name.localeCompare(b.name));
                 } else if (sortBy === 'name-desc') {
-                    filteredProducts.sort((a, b) => b.name.localeCompare(a.name));
+                    filteredAndSortedProducts.sort((a, b) => b.name.localeCompare(a.name));
                 }
-                // Для 'random' ничего делать не нужно, т.к. массив уже перемешан при загрузке
-
-                renderProducts(filteredProducts);
+                // Для 'random' ничего не делаем, порядок сохраняется
+                
+                currentPage = 1; // Сбрасываем на первую страницу при любом изменении
+                renderCurrentPage();
+                setupPagination();
             }
             
-            // --- Обработчики событий ---
-            filterContainer.addEventListener('change', (event) => {
-                if (event.target.type === 'checkbox') {
-                    applyFiltersAndSort();
-                }
-            });
+            filterContainer.addEventListener('change', (e) => { if (e.target.type === 'checkbox') applyFiltersAndSort(); });
             sortSelect.addEventListener('change', applyFiltersAndSort);
 
             fetchData();

@@ -7,6 +7,9 @@ import os
 import json
 import random
 from collections import Counter
+import threading
+from apscheduler.schedulers.background import BackgroundScheduler
+import atexit
 
 # --- НАСТРОЙКИ ---
 SPREADSHEET_ID = '1wDcqbg0dkI_P7bZRzaU5J88mjbHNUHZpYwDpdImVbUk'
@@ -15,33 +18,26 @@ SHEET_NAME_SHIPPED = 'Отгружено'
 SHEET_NAME_SETTINGS = 'Настройки'
 
 IMAGE_FOLDER = 'images'
-DATA_START_ROW = 2 
+DATA_START_ROW = 2
+CACHE_FILE = 'catalog_cache.json'
 
 # --- КАРТА СТОЛБЦОВ ---
 COLUMN_MAP = {
-    'sku': 0,          # Столбец A: Артикул
-    'stock': 1,        # Столбец B: Остаток
-    'name': 3,         # Столбец D: Название
-    'archive_name': 4, # Столбец E: Имя архива (для картинки)
-    'race': 5,         # Столбец F: Раса
-    'class': 6,        # Столбец G: Класс
+    'sku': 0, 'stock': 1, 'name': 3, 'archive_name': 4, 'race': 5, 'class': 6,
 }
 
 # --- ЛОГИКА ПРЕФИКСОВ ---
 POSSIBLE_PREFIXES = ["Enemy - ", "Hero - ", "Weapon - ", "Bust - ", "NPC - ", "Special - ", "Xmas Special -"]
-
-# --- SCOPES ---
 SCOPES = ['https://www.googleapis.com/auth/spreadsheets.readonly']
 
 app = Flask(__name__, static_folder='static', static_url_path='')
-CORS(app) 
+CORS(app)
 
-# --- ОПРЕДЕЛЕНИЕ ПУТИ ---
 script_dir = os.path.dirname(os.path.abspath(__file__))
 abs_image_folder_path = os.path.join(script_dir, IMAGE_FOLDER)
+cache_file_path = os.path.join(script_dir, CACHE_FILE)
 
 def get_creds():
-    """Получает учетные данные из переменной окружения."""
     creds_json_str = os.environ.get('GOOGLE_CREDENTIALS')
     if not creds_json_str:
         raise ValueError("Переменная окружения GOOGLE_CREDENTIALS не найдена.")
@@ -50,7 +46,6 @@ def get_creds():
 
 def get_local_images():
     if not os.path.isdir(abs_image_folder_path):
-        print(f"ПРЕДУПРЕЖДЕНИЕ: Папка '{abs_image_folder_path}' не найдена.")
         return {}
     
     image_map = {}
@@ -63,8 +58,6 @@ def get_local_images():
                 lowercase_folder_name = folder_name.strip().lower()
                 if lowercase_folder_name not in image_map:
                     image_map[lowercase_folder_name] = url_path
-                    
-    print(f"Найдено {len(image_map)} изображений в подпапках '{IMAGE_FOLDER}'.")
     return image_map
 
 def find_image_locally(archive_name, image_map):
@@ -84,23 +77,14 @@ def find_image_locally(archive_name, image_map):
         return f'/images/{path_segment}'
     return None
 
-@app.route('/')
-def serve_index():
-    return send_from_directory(app.static_folder, 'index.html')
-
-@app.route('/images/<path:filename>')
-def serve_image(filename):
-    return send_from_directory(abs_image_folder_path, filename)
-
-@app.route('/api/catalog', methods=['GET'])
-def get_catalog_data():
+def update_cache():
+    """Основная функция для обновления кэша из Google Sheets."""
+    print("Начало обновления кэша...")
     try:
         creds = get_creds()
         sheets_service = gspread.authorize(creds)
-
         image_map = get_local_images()
 
-        # --- Получение данных из всех листов ---
         catalog_sheet = sheets_service.open_by_key(SPREADSHEET_ID).worksheet(SHEET_NAME_CATALOG)
         shipped_sheet = sheets_service.open_by_key(SPREADSHEET_ID).worksheet(SHEET_NAME_SHIPPED)
         settings_sheet = sheets_service.open_by_key(SPREADSHEET_ID).worksheet(SHEET_NAME_SETTINGS)
@@ -109,11 +93,9 @@ def get_catalog_data():
         all_shipped_values = shipped_sheet.get_all_values()
         all_settings_values = settings_sheet.get_all_values()
 
-        # --- Подсчет продаж ---
-        shipped_skus = [row[0].strip() for row in all_shipped_values[1:] if row and row[0]]
+        shipped_skus = [row[COLUMN_MAP['sku']].strip() for row in all_shipped_values[1:] if row and len(row) > COLUMN_MAP['sku']]
         sales_counts = Counter(shipped_skus)
         
-        # --- Получение настроек ---
         manual_top_skus = []
         for row in all_settings_values:
             if row and row[0].strip().lower() == 'manual_top_sales' and len(row) > 1:
@@ -138,9 +120,7 @@ def get_catalog_data():
                 stock = 0
             
             formatted_item = {
-                "sku": sku,
-                "name": name,
-                "stock": stock,
+                "sku": sku, "name": name, "stock": stock,
                 "race": row[COLUMN_MAP['race']].strip() if len(row) > COLUMN_MAP['race'] else 'Не указана',
                 "class": row[COLUMN_MAP['class']].strip() if len(row) > COLUMN_MAP['class'] else 'Не указан',
                 "imageUrl": image_url or 'https://placehold.co/400x400/e2e8f0/64748b?text=Нет+Фото',
@@ -148,31 +128,71 @@ def get_catalog_data():
             }
             formatted_data.append(formatted_item)
 
-        # --- Логика формирования карусели ---
         top_sales_items = []
         if manual_top_skus:
-            # Ручной режим
             top_sales_map = {item['sku']: item for item in formatted_data}
             for sku in manual_top_skus:
                 if sku in top_sales_map:
                     top_sales_items.append(top_sales_map[sku])
         else:
-            # Автоматический режим
             top_sales_items = sorted([item for item in formatted_data if item['sales'] > 0], key=lambda x: x['sales'], reverse=True)[:20]
 
-        # --- Сортировка основного каталога (по умолчанию случайная) ---
         random.shuffle(formatted_data)
-
-        return jsonify({
+        
+        cache_data = {
             "catalog": formatted_data,
             "top_sales": top_sales_items
-        })
+        }
+
+        with open(cache_file_path, 'w', encoding='utf-8') as f:
+            json.dump(cache_data, f, ensure_ascii=False, indent=4)
+        
+        print("Обновление кэша успешно завершено.")
 
     except Exception as e:
-        print(f"Произошла внутренняя ошибка: {e}") 
-        return jsonify({"error": f"Произошла внутренняя ошибка сервера: {e}"}), 500
+        print(f"КРИТИЧЕСКАЯ ОШИБКА при обновлении кэша: {e}")
+
+@app.route('/')
+def serve_index():
+    return send_from_directory(app.static_folder, 'index.html')
+
+@app.route('/images/<path:filename>')
+def serve_image(filename):
+    return send_from_directory(abs_image_folder_path, filename)
+
+@app.route('/api/catalog', methods=['GET'])
+def get_catalog_data():
+    if not os.path.exists(cache_file_path):
+        print("Кэш не найден. Запускаю первоначальное обновление...")
+        update_cache()
+
+    try:
+        with open(cache_file_path, 'r', encoding='utf-8') as f:
+            data = json.load(f)
+        return jsonify(data)
+    except Exception as e:
+        print(f"Ошибка чтения кэша: {e}")
+        return jsonify({"error": "Ошибка сервера при чтении кэша."}), 500
+
+if __name__ != '__main__':
+    # Этот блок выполняется, когда Gunicorn запускает приложение.
+    # Запускаем обновление кэша при старте
+    startup_thread = threading.Thread(target=update_cache)
+    startup_thread.start()
+
+    # Настраиваем ежедневное обновление
+    scheduler = BackgroundScheduler(daemon=True)
+    scheduler.add_job(update_cache, 'cron', hour=18, minute=0)
+    scheduler.start()
+    
+    # Убеждаемся, что планировщик корректно завершает работу
+    atexit.register(lambda: scheduler.shutdown())
 
 if __name__ == '__main__':
-    print("Сервер запущен. Откройте в браузере http://127.0.0.1:5000")
-    app.run(host='0.0.0.0', port=5000, debug=True)
+    # Этот блок для локального тестирования.
+    print("Сервер запущен в режиме локальной отладки.")
+    # Обновляем кэш при старте
+    update_cache()
+    # Запускаем веб-сервер
+    app.run(host='0.0.0.0', port=5000)
 
